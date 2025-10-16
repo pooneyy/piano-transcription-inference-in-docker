@@ -21,23 +21,107 @@ jobs:
     strategy:
       matrix:
         include:
-          - python_version: 3.7
-            pytorch_install_param: "torch==1.4.0+cpu torchvision==0.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html"
-            torch_version: pytorch-1.4.0cpu
-            version: PyTorch 1.4.0-cpu
+          - runs-on: ubuntu-latest
+            base_image: python:3.7
+            commands: >-
+              pip install torch==1.4.0+cpu torchvision==0.5.0+cpu -f https://download.pytorch.org/whl/torch_stable.html
+            torch_version: pytorch-1.4.0-cpu
+            version: PyTorch 1.4.0 CPU
 
-          - python_version: 3.7
-            pytorch_install_param: "torch==1.4.0+cu92 torchvision==0.5.0+cu92 -f https://download.pytorch.org/whl/torch_stable.html"
-            torch_version: pytorch-1.4.0cuda9.2
-            version: PyTorch 1.4.0cuda9.2
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:1.4-cuda10.1-cudnn7-runtime
+            commands: 
+            torch_version: pytorch-1.4.0-cuda-10.1
+            version: PyTorch 1.4.0 CUDA 10.1
 
-          - python_version: 3.7
-            pytorch_install_param: "torch==1.4.0 torchvision==0.5.0"
-            torch_version: pytorch-1.4.0cuda10.1
-            version: PyTorch 1.4.0cuda10.1
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:1.9.0-cuda10.2-cudnn7-runtime
+            commands: 
+            torch_version: pytorch-1.9.0-cuda-10.2
+            version: PyTorch 1.9.0 CUDA 10.2
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:1.7.1-cuda11.0-cudnn8-runtime
+            commands: 
+            torch_version: pytorch-1.7.1-cuda-11.0
+            version: PyTorch 1.7.1 CUDA 11.0
+
+          - runs-on: self-hosted
+            base_image: pytorch/pytorch:1.9.1-cuda11.1-cudnn8-runtime
+            commands: 
+            torch_version: pytorch-1.9.1-cuda-11.1
+            version: PyTorch 1.9.1 CUDA 11.1
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:1.12.1-cuda11.3-cudnn8-runtime
+            commands: 
+            torch_version: pytorch-1.12.1-cuda-11.3
+            version: PyTorch 1.12.1 CUDA 11.3
+
+          - runs-on: self-hosted
+            base_image: pytorch/pytorch:1.13.1-cuda11.6-cudnn8-runtime
+            commands: >-
+              pip install numpy==1.23
+            torch_version: pytorch-1.13.1-cuda-11.6
+            version: PyTorch 1.13.1 CUDA 11.6
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:2.0.1-cuda11.7-cudnn8-runtime
+            commands: 
+            torch_version: pytorch-2.0.1-cuda-11.7
+            version: PyTorch 2.0.1 CUDA 11.7
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:2.5.1-cuda11.8-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.5.1-cuda-11.8
+            version: PyTorch 2.5.1 CUDA 11.8
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:2.5.1-cuda12.1-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.5.1-cuda-12.1
+            version: PyTorch 2.5.1 CUDA 12.1
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:2.5.1-cuda12.4-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.5.1-cuda-12.4
+            version: PyTorch 2.5.1 CUDA 12.4
+
+          - runs-on: self-hosted
+            base_image: pytorch/pytorch:2.8.0-cuda12.6-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.8.0-cuda-12.6
+            version: PyTorch 2.8.0 CUDA 12.6
+
+          - runs-on: self-hosted
+            base_image: pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.8.0-cuda-12.8
+            version: PyTorch 2.8.0 CUDA 12.8
+
+          - runs-on: self-hosted
+            base_image: pytorch/pytorch:2.8.0-cuda12.9-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.8.0-cuda-12.9
+            version: PyTorch 2.8.0 CUDA 12.9
+
+          - runs-on: ubuntu-latest
+            base_image: pytorch/pytorch:2.9.0-cuda13.0-cudnn9-runtime
+            commands: 
+            torch_version: pytorch-2.9.0-cuda-13.0
+            version: PyTorch 2.9.0 CUDA 13.0
+
+          # - runs-on: self-hosted
+          #   base_image: 
+          #   commands: >-
+              
+          #   torch_version: 
+          #   version: 
 
     name: Build and publish (${{ matrix.version }})
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runs-on }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
@@ -80,12 +164,34 @@ jobs:
         uses: docker/setup-qemu-action@v3
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-      - name: Build and push
+      - name: Build
         uses: docker/build-push-action@v6
         with:
           build-args: |
-            PYTHON_VERSION=${{ matrix.python_version }}
-            PYTORCH_VERSION=${{ matrix.pytorch_install_param }}
+            BASE_IMAGE=${{ matrix.base_image }}
+            COMMANDS=${{ matrix.commands }}
+          context: .
+          push: false
+          load: true
+          tags: |
+            ${{ env.IMAGE_FULL_NAME }}:${{ env.IMAGE_TAG }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          platforms: ${{ env.ARCHITECTURES }}
+
+      - name: Run tests on built image
+        run: |
+          docker run --rm ${{ env.IMAGE_FULL_NAME }}:${{ env.IMAGE_TAG }} sh -c "wget --no-verbose -O example.mp3 https://raw.githubusercontent.com/qiuqiangkong/piano_transcription_inference/refs/heads/master/resources/cut_liszt.mp3 && python3 main.py --audio_path='example.mp3' --output_midi_path='example.mid'" 
+          docker rmi -f ${{ env.IMAGE_FULL_NAME }}:${{ env.IMAGE_TAG }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_SUMMARY: false
+        with:
+          build-args: |
+            BASE_IMAGE=${{ matrix.base_image }}
+            COMMANDS=${{ matrix.commands }}
           context: .
           push: true
           tags: |
